@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>RSVP Prototype</title>
@@ -116,6 +117,13 @@
       display:grid;
       gap: 12px;
     }
+      <div class="row">
+        <input id="fileInput" type="file"
+               accept=".txt,.pdf,application/pdf,text/plain"
+               multiple />
+        <button id="loadFiles">Load file(s)</button>
+        <div class="meta" id="fileStatus">No files loaded</div>
+      </div>
 
     textarea{
       width: 100%;
@@ -257,6 +265,10 @@
     const elWpm    = document.getElementById("wpm");
     const elWpmLbl = document.getElementById("wpmLabel");
     const elStatus = document.getElementById("status");
+    const elFileInput  = document.getElementById("fileInput");
+    const elLoadFiles  = document.getElementById("loadFiles");
+    const elFileStatus = document.getElementById("fileStatus");
+
 
     // ---- Player state ----
     let words = tokenize(elInput.value);
@@ -369,6 +381,36 @@
         updateStatus();
       }
     });
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js";
+  
+  async function readTextFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+  }
+  
+  async function readPdfFile(file) {
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  
+    let text = "";
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      text += content.items.map(i => i.str).join(" ") + "\n\n";
+    }
+    return text.trim();
+  }
+  
+    async function readAnyFile(file) {
+      return file.name.toLowerCase().endsWith(".pdf")
+        ? readPdfFile(file)
+        : readTextFile(file);
+    }
 
     // Init
     elWpmLbl.textContent = elWpm.value;
