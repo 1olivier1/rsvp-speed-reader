@@ -6,12 +6,16 @@
   <title>RSVP Prototype</title>
 
   <!-- PDF.js (for PDF text extraction in-browser) -->
- <script defer src="https://unpkg.com/pdfjs-dist@4.10.38/legacy/build/pdf.min.js"></script>
+   <script defer src="https://unpkg.com/pdfjs-dist@4.10.38/legacy/build/pdf.min.js"></script>
   
   <script>
-    console.log("PDF.js loaded:", window.pdfjsLib);
-   
+    window.addEventListener('load', () => {
+      console.log("PDF.js loaded:", window.pdfjsLib);
+      // Now you can safely use pdfjsLib here.
+    });
   </script>
+  
+  <script> console.log("PDF.js loaded:", window.pdfjsLib); </script>
 
   <style>
     :root{
