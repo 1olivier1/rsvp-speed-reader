@@ -6,7 +6,8 @@
   <title>RSVP Prototype</title>
 
   <!-- PDF.js (for PDF text extraction in-browser) -->
- <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js" defer></script>
+ <script defer src="https://unpkg.com/pdfjs-dist@4.10.38/legacy/build/pdf.min.js"></script>
+
 
 
   <style>
@@ -371,8 +372,9 @@
     // Configure PDF.js worker
     if (window.pdfjsLib) {
       pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js";
-    }
+        "https://unpkg.com/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.js";
+
+     }
 
     async function readTextFile(file) {
       return new Promise((resolve, reject) => {
