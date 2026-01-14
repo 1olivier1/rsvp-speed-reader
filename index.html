@@ -6,7 +6,8 @@
   <title>RSVP Prototype</title>
 
   <!-- PDF.js (for PDF text extraction in-browser) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js"></script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js" defer></script>
+
 
   <style>
     :root{
@@ -382,10 +383,14 @@
       });
     }
 
-    async function readPdfFile(file) {
+       async function readPdfFile(file) {
+      if (!window.pdfjsLib) {
+        throw new Error("PDF.js not loaded");
+      }
+    
       const buffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-
+    
       let text = "";
       for (let p = 1; p <= pdf.numPages; p++) {
         const page = await pdf.getPage(p);
