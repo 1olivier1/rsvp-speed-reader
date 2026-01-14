@@ -1,10 +1,13 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>RSVP Prototype</title>
+
+  <!-- PDF.js (for PDF text extraction in-browser) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js"></script>
+
   <style>
     :root{
       --bg: #0b0f14;
@@ -64,12 +67,11 @@
     .focus-box::after{ bottom: 18px; }
 
     /*
-      THE KEY ALIGNMENT TRICK:
-      Use a 3-column grid: [prefix | pivot | suffix]
-      - prefix column expands left (1fr) and is right-aligned
-      - pivot is auto-width and stays centered at the same x-position
-      - suffix column expands right (1fr) and is left-aligned
-      With monospace font, it looks pixel-perfect.
+      KEY ALIGNMENT:
+      3-column grid: [prefix | pivot | suffix]
+      - prefix expands left (1fr) and is right-aligned
+      - pivot is auto-width and stays centered
+      - suffix expands right (1fr) and is left-aligned
     */
     .wordline{
       width: 100%;
@@ -77,11 +79,11 @@
       display:grid;
       grid-template-columns: 1fr auto 1fr;
       align-items:baseline;
-      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "JetBrains Mono", "Courier New", monospace;
       font-size: clamp(34px, 5vw, 54px);
       line-height: 1.05;
       letter-spacing: 0.5px;
-      font-variant-ligatures: none; /* avoid any ligature weirdness */
+      font-variant-ligatures: none;
     }
 
     .prefix{
@@ -89,7 +91,7 @@
       text-align: right;
       color: var(--text);
       opacity: 0.95;
-      white-space: pre; /* preserve spaces if you ever add them */
+      white-space: pre;
     }
 
     .pivot{
@@ -117,13 +119,6 @@
       display:grid;
       gap: 12px;
     }
-      <div class="row">
-        <input id="fileInput" type="file"
-               accept=".txt,.pdf,application/pdf,text/plain"
-               multiple />
-        <button id="loadFiles">Load file(s)</button>
-        <div class="meta" id="fileStatus">No files loaded</div>
-      </div>
 
     textarea{
       width: 100%;
@@ -190,8 +185,15 @@
       font-size: 12px;
       color: var(--muted);
     }
+
+    /* Slightly nicer file input without over-styling */
+    input[type="file"]{
+      color: var(--muted);
+      max-width: 100%;
+    }
   </style>
 </head>
+
 <body>
   <div class="app">
     <div class="focus-box" aria-label="RSVP focus box">
@@ -203,6 +205,16 @@
     </div>
 
     <div class="controls">
+
+      <!-- File upload row (TXT + PDF) -->
+      <div class="row">
+        <input id="fileInput" type="file"
+               accept=".txt,.pdf,application/pdf,text/plain"
+               multiple />
+        <button id="loadFiles">Load file(s)</button>
+        <div class="meta" id="fileStatus">No files loaded</div>
+      </div>
+
       <textarea id="input" placeholder="Paste text here...">This is an RSVP prototype. Notice how the highlighted letter stays perfectly centered, even for longer words. Cool; right?</textarea>
 
       <div class="row">
@@ -245,8 +257,6 @@
     }
 
     function tokenize(text) {
-      // Simple whitespace split; keeps punctuation attached to words (good for delay rule).
-      // Filters out empty tokens.
       return text
         .replace(/\s+/g, " ")
         .trim()
@@ -265,10 +275,10 @@
     const elWpm    = document.getElementById("wpm");
     const elWpmLbl = document.getElementById("wpmLabel");
     const elStatus = document.getElementById("status");
+
     const elFileInput  = document.getElementById("fileInput");
     const elLoadFiles  = document.getElementById("loadFiles");
     const elFileStatus = document.getElementById("fileStatus");
-
 
     // ---- Player state ----
     let words = tokenize(elInput.value);
@@ -290,7 +300,6 @@
 
     function updateStatus() {
       const total = words.length;
-      const idx = Math.min(i + (playing ? 1 : 0), total);
       elStatus.textContent = `${playing ? "Playing" : "Paused"} • ${Math.min(i, total)}/${total}`;
     }
 
@@ -314,7 +323,6 @@
       }
 
       if (i >= words.length) {
-        // done
         playing = false;
         elToggle.textContent = "Play";
         updateStatus();
@@ -354,9 +362,45 @@
       pause();
       i = 0;
       words = tokenize(elInput.value);
-      if (words[0]) renderWord(words[0]);
-      else renderWord("");
+      renderWord(words[0] || "");
       updateStatus();
+    }
+
+    // ---- PDF/TXT reading ----
+    // Configure PDF.js worker
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js";
+    }
+
+    async function readTextFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(file);
+      });
+    }
+
+    async function readPdfFile(file) {
+      const buffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+
+      let text = "";
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        text += content.items.map(it => it.str).join(" ") + "\n\n";
+      }
+      return text.trim();
+    }
+
+    async function readAnyFile(file) {
+      const name = (file.name || "").toLowerCase();
+      if (name.endsWith(".pdf") || file.type === "application/pdf") {
+        return await readPdfFile(file);
+      }
+      return await readTextFile(file);
     }
 
     // ---- Events ----
@@ -369,11 +413,10 @@
 
     elWpm.addEventListener("input", () => {
       elWpmLbl.textContent = elWpm.value;
-      // If currently playing, don't restart—next tick uses new delay automatically.
+      // If playing, next tick uses new delay automatically.
     });
 
     elInput.addEventListener("input", () => {
-      // If paused, preview the first word.
       if (!playing) {
         i = 0;
         words = tokenize(elInput.value);
@@ -381,36 +424,30 @@
         updateStatus();
       }
     });
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js";
-  
-  async function readTextFile(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(reader.error);
-      reader.readAsText(file);
+
+    // Load file(s) button
+    elLoadFiles.addEventListener("click", async () => {
+      const files = Array.from(elFileInput.files || []);
+      if (!files.length) return;
+
+      elFileStatus.textContent = "Loading...";
+
+      try {
+        const contents = await Promise.all(files.map(readAnyFile));
+        elInput.value = contents.join("\n\n");
+
+        elFileStatus.textContent = `Loaded: ${files.map(f => f.name).join(", ")}`;
+
+        // Reset reading position + preview first word
+        i = 0;
+        words = tokenize(elInput.value);
+        renderWord(words[0] || "");
+        updateStatus();
+      } catch (err) {
+        console.error(err);
+        elFileStatus.textContent = "Failed to read files";
+      }
     });
-  }
-  
-  async function readPdfFile(file) {
-    const buffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-  
-    let text = "";
-    for (let p = 1; p <= pdf.numPages; p++) {
-      const page = await pdf.getPage(p);
-      const content = await page.getTextContent();
-      text += content.items.map(i => i.str).join(" ") + "\n\n";
-    }
-    return text.trim();
-  }
-  
-    async function readAnyFile(file) {
-      return file.name.toLowerCase().endsWith(".pdf")
-        ? readPdfFile(file)
-        : readTextFile(file);
-    }
 
     // Init
     elWpmLbl.textContent = elWpm.value;
