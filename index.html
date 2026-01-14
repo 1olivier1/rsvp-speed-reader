@@ -6,15 +6,42 @@
   <title>RSVP Prototype</title>
 
   <!-- PDF.js (for PDF text extraction in-browser) -->
-   <script defer src="https://unpkg.com/pdfjs-dist@4.10.38/legacy/build/pdf.min.js"></script>
-  
-  <script>
-    window.addEventListener('load', () => {
-      console.log("PDF.js loaded:", window.pdfjsLib);
-      // Now you can safely use pdfjsLib here.
-    });
-  </script>
-  
+      <script defer src="https://unpkg.com/pdfjs-dist@4.10.38/legacy/build/pdf.min.js"></script>
+    
+    <script>
+      window.addEventListener('load', () => {
+        // Make sure everything is loaded first
+        setTimeout(async () => {
+          console.log("PDF.js loaded:", window.pdfjsLib);
+          
+          // Now do PDF-related logic here
+          if (window.pdfjsLib) {
+            // For example, if you have a file input and want to read a PDF:
+            elLoadFiles.addEventListener('click', async () => {
+              const files = Array.from(elFileInput.files || []);
+              if (!files.length) return;
+    
+              elFileStatus.textContent = "Loading...";
+    
+              try {
+                const contents = await Promise.all(files.map(readAnyFile));
+                elInput.value = contents.join("\n\n");
+                elFileStatus.textContent = `Loaded: ${files.map(f => f.name).join(", ")}`;
+                
+                // Reset reading position and start processing the loaded PDF text
+                i = 0;
+                words = tokenize(elInput.value);
+                renderWord(words[0] || "");
+                updateStatus();
+              } catch (err) {
+                console.error(err);
+                elFileStatus.textContent = "Failed to read files";
+              }
+            });
+          }
+        }, 500); // Small delay to ensure everything is fully ready
+      });
+    </script>
   <script> console.log("PDF.js loaded:", window.pdfjsLib); </script>
 
   <style>
